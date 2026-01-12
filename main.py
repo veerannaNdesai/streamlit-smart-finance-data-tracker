@@ -3,6 +3,33 @@ import numpy as np
 import streamlit as st
 import os
 import plotly.express as px
+import json
+
+
+category_file = "categories.json"
+
+
+if os.path.exists(category_file):
+    try:
+        with open(category_file,"r") as f:
+            st.session_state.categories = json.load(f)
+    except json.JSONDecodeError:
+        st.session_state.categories = {
+            "Uncategorized" : []
+        }
+else:
+    st.session_state.categories = {
+            "Uncategorized" : []
+        }
+    
+        
+
+
+        
+
+def save_categories():
+    with open(category_file,"w") as f:
+        json.dump(st.session_state.categories,f)
 
 
 def load_transactions(file):
@@ -12,10 +39,27 @@ def load_transactions(file):
         df["Amount"] = df["Amount"].str.replace(",","").astype(float)
         df["Date"] = pd.to_datetime(df["Date"],format="%d %b %Y")
         st.write(df)
-        return df
+        return categorize_transactions(df)
     except Exception as e:
         st.error(f"error in processing file: {str(e)}")
         return None
+
+def categorize_transactions(df):
+    if "category" not in df.columns:
+        df['category'] = "Uncategorized"
+    
+    for i,js in st.session_state.categories.items():
+        if i == "Uncategorized" or not js:
+            continue
+        lowered_keywords = [j.lower().strip() for j in js]
+
+        for idx,row in df.iterrows():
+            details = row["Details"].lower().strip()
+            if details in lowered_keywords:
+                df.at[idx,"Category"] = i
+
+    return df
+
 
 
 def main():
@@ -30,7 +74,17 @@ def main():
 
             tab1,tab2 = st.tabs(["Expenses(Credits)","Expenses(Debits)"])
             with tab1:
-                st.write(credits_df)
+                new_category = st.text_input("New CategoryName")
+                add_button = st.button("Add Category")
+
+                
+
+                if add_button and new_category:
+                    if new_category not in st.session_state.categories:
+                        st.session_state.categories[new_category] = []
+                        save_categories()
+                        st.rerun()
+                
             with tab2:
                 st.write(debits_df)
 
